@@ -2,7 +2,8 @@ export class GlyphTokenizer {
  constructor(data){
   this.bytes=data.tokens.map(t=>Uint8Array.from(atob(t[0]),c=>c.charCodeAt(0)));
   this.ranks=new Map(this.bytes.map((b,i)=>[String.fromCharCode(...b),i]));
-  const contraction="(?:'[sS]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])";
+  // Unicode case-insensitive 's also matches the long s (U+017F), as in tiktoken.
+  const contraction="(?:'[sSſ]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])";
   const pattern=data.pattern.replaceAll("(?i:'s|'t|'re|'ve|'m|'ll|'d)",contraction).replaceAll('\\s','\\p{White_Space}').replaceAll('\\S','\\P{White_Space}');
   this.pattern=new RegExp(pattern,'gu');this.encoder=new TextEncoder();this.decoder=new TextDecoder('utf-8',{fatal:true});
  }
