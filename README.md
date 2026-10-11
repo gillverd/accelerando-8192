@@ -4,7 +4,7 @@
 
 [Explore the live site](https://gillverd.github.io/accelerando-8192/)
 
-An angular, mint-green alien alphabet paired with a custom 8,192-entry byte-pair tokenizer. The site includes a searchable character archive, a local browser encoder, an Accelerando specimen, and downloadable fonts, atlases, and reproducible tokenizer data.
+An angular, mint-green alien alphabet paired with a custom 8,192-entry byte-pair tokenizer. The site includes a searchable character archive, a local browser encoder and decoder, an Accelerando specimen, and downloadable fonts, atlases, and reproducible tokenizer data.
 
 ## The system
 
@@ -25,13 +25,16 @@ python3 -m http.server 8080 --directory docs
 
 Open `http://localhost:8080`. The static site has no build step or backend, and input text never leaves the browser. No analytics or external scripts are loaded.
 
+The transmission studio also decodes copied Accelerando-8192 glyphs. Whitespace between glyphs is ignored; spaces and line breaks in the message are recovered from their glyphs. Copy or download the recovered text.
+
 ## Verify
 
 ```sh
 node tests/tokenizer.test.mjs
+node tests/decoder.test.mjs
 ```
 
-The browser tokenizer is compared with reference outputs from the Python tiktoken implementation, including the complete song and multilingual/whitespace cases. The downloadable full package also includes the Python encoder and decoder.
+The browser tokenizer is compared with reference outputs from the Python tiktoken implementation, including the complete song and multilingual/whitespace cases. Decoder tests cover copied and wrapped streams, invalid glyphs and token IDs, UTF-8 byte fragments, and preservation of leading byte-order marks. The downloadable full package also includes the Python encoder and decoder.
 
 ## Publish
 

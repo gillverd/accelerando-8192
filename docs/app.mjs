@@ -1,10 +1,10 @@
 import {GlyphTokenizer} from './tokenizer.mjs';
 const $=s=>document.querySelector(s),char=id=>String.fromCodePoint(0xF0000+id);
-let data,tokenizer,filtered=[],page=0,selected=0,currentIds=[],tokenView=false;
+let data,tokenizer,filtered=[],page=0,selected=0,currentIds=[],tokenView=false,decodedText='';
 const pageSize=96;
 const samples=['Hello, other world.','Memorize my number','The universe is under no obligation to make sense to you.','A message from somewhere else.','Hello, 世界. Bonjour, cosmos.'];let sampleIndex=0;
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),2200);}
-async function copy(s){try{await navigator.clipboard.writeText(s);toast('Copied. Use the Accelerando-8192 font to display it.');}catch{toast('Clipboard unavailable. Use the SVG download instead.');}}
+async function copy(s,success='Copied. Use the Accelerando-8192 font to display it.',failure='Clipboard unavailable. Use the SVG download instead.'){try{await navigator.clipboard.writeText(s);toast(success);}catch{toast(failure);}}
 function download(contents,name,type='image/svg+xml'){const url=URL.createObjectURL(new Blob([contents],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function path(id,x=20,y=20,size=60){return data.shapes[id].map(([a,b])=>`M${x+a[0]*size/2} ${y+a[1]*size/2}L${x+b[0]*size/2} ${y+b[1]*size/2}`).join(' ');}
 function shapeSvg(id){return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><title>Glyph ${id}</title><path d="${path(id)}" fill="none" stroke="#94d7ad" stroke-width="3.4" stroke-linecap="square"/></svg>`;}
@@ -20,7 +20,26 @@ function renderEncoded(){const area=$('#encoded');area.replaceChildren();if(!cur
  if(currentIds.length>visible.length){const p=document.createElement('p');p.className='loading';p.textContent='Preview shows the first 1,200 glyphs. Copy and SVG export include the full transmission.';area.append(p);}
 }
 function encode(){if(!tokenizer)return;const input=$('#source-text').value;$('#character-count').textContent=`${input.length} / 2000`;try{currentIds=tokenizer.encode(input);const matches=tokenizer.decode(currentIds)===input;$('#token-stats').textContent=`${currentIds.length} tokens / ${new Set(currentIds).size} unique`;$('#roundtrip').textContent=matches?'✓ Verified: decodes to your exact text.':'Text includes an unsupported Unicode sequence.';$('#roundtrip').classList.toggle('error',!matches);renderEncoded();}catch(e){$('#roundtrip').textContent=e.message;$('#roundtrip').classList.add('error');}}
+function decodeTransmission(){
+ if(!tokenizer)return;
+ // Clear the previous result before validating a new transmission.
+ decodedText='';$('#decoded-text').value='';
+ $('#copy-decoded').disabled=true;$('#save-decoded').disabled=true;
+ $('#decode-stats').textContent='0 tokens';$('#decode-status').classList.remove('error');
+ try{
+  const ids=tokenizer.idsFromGlyphs($('#glyph-text').value);
+  if(!ids.length){$('#decode-status').textContent='Paste a glyph transmission to recover its text.';return;}
+  decodedText=tokenizer.decode(ids);$('#decoded-text').value=decodedText;
+  $('#decode-stats').textContent=`${ids.length} tokens`;
+  $('#decode-status').textContent='✓ Decoded UTF-8 text.';
+  $('#copy-decoded').disabled=false;$('#save-decoded').disabled=false;
+ }catch(error){$('#decode-status').textContent=error.message;$('#decode-status').classList.add('error');}
+}
+$('#glyph-text').addEventListener('input',decodeTransmission);
+$('#decode-current').addEventListener('click',()=>{$('#glyph-text').value=currentIds.map(char).join('');decodeTransmission();});
+$('#copy-decoded').addEventListener('click',()=>copy(decodedText,'Decoded text copied.','Clipboard unavailable. Select and copy the decoded text.'));
+$('#save-decoded').addEventListener('click',()=>download(decodedText,'accelerando-8192-decoded.txt','text/plain;charset=utf-8'));
 $('#source-text').addEventListener('input',()=>{clearTimeout(encode.timer);encode.timer=setTimeout(encode,100);});$('#sample').addEventListener('click',()=>{$('#source-text').value=samples[++sampleIndex%samples.length];encode();});$('#view-glyphs').addEventListener('click',()=>{tokenView=false;$('#view-glyphs').setAttribute('aria-pressed','true');$('#view-tokens').setAttribute('aria-pressed','false');renderEncoded();});$('#view-tokens').addEventListener('click',()=>{tokenView=true;$('#view-tokens').setAttribute('aria-pressed','true');$('#view-glyphs').setAttribute('aria-pressed','false');renderEncoded();});$('#copy-transmission').addEventListener('click',()=>copy(currentIds.map(char).join('')));$('#save-transmission').addEventListener('click',()=>{if(data)download(transmissionSvg(currentIds),'accelerando-8192-transmission.svg');});$('#search').addEventListener('input',()=>{if(data)search();});$('#filter').addEventListener('change',()=>{if(data)search();});$('#prev').addEventListener('click',()=>{page--;drawGrid();});$('#next').addEventListener('click',()=>{page++;drawGrid();});$('#random').addEventListener('click',()=>{if(data)openGlyph(Math.floor(Math.random()*8192));});$('#close-dialog').addEventListener('click',()=>$('#glyph-dialog').close());$('#glyph-dialog').addEventListener('click',e=>{if(e.target===$('#glyph-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});$('#copy-glyph').addEventListener('click',()=>copy(char(selected)));$('#save-glyph').addEventListener('click',()=>download(shapeSvg(selected),`glyph-${String(selected).padStart(4,'0')}.svg`));
 // A deterministic specimen field, using the real alphabet font.
 for(let i=0;i<49;i++){const s=document.createElement('span');s.textContent=char((i*181+2447)%8192);s.style.setProperty('--delay',`${i%9-8}s`);$('#hero-field').append(s);}
-try{const response=await fetch('data/alphabet.json');if(!response.ok)throw Error('Alphabet download failed. Please reload.');data=await response.json();tokenizer=new GlyphTokenizer(data);search();encode();}catch(error){$('#encoded').textContent=error.message;$('#results-count').textContent='Alphabet unavailable. The downloadable package is still available.';$('#roundtrip').textContent='Try reloading the page.';}
+try{const response=await fetch('data/alphabet.json');if(!response.ok)throw Error('Alphabet download failed. Please reload.');data=await response.json();tokenizer=new GlyphTokenizer(data);search();encode();$('#glyph-text').disabled=false;$('#decode-current').disabled=false;decodeTransmission();}catch(error){$('#encoded').textContent=error.message;$('#results-count').textContent='Alphabet unavailable. The downloadable package is still available.';$('#roundtrip').textContent='Try reloading the page.';$('#decode-status').textContent='Decoder unavailable. Try reloading the page.';}
