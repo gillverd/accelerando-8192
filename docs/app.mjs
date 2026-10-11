@@ -1,7 +1,7 @@
 import {GlyphTokenizer} from './tokenizer.mjs';
 const $=s=>document.querySelector(s),char=id=>String.fromCodePoint(0xF0000+id);
 let data,tokenizer,filtered=[],page=0,selected=0,currentIds=[],tokenView=false,decodedText='';
-const pageSize=96;
+const pageSize=96,maxGlyphs=8000;
 const samples=['Hello, other world.','Memorize my number','The universe is under no obligation to make sense to you.','A message from somewhere else.','Hello, 世界. Bonjour, cosmos.'];let sampleIndex=0;
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),2200);}
 async function copy(s,success='Copied. Use the Accelerando-8192 font to display it.',failure='Clipboard unavailable. Use the SVG download instead.'){try{await navigator.clipboard.writeText(s);toast(success);}catch{toast(failure);}}
@@ -29,6 +29,8 @@ function decodeTransmission(){
  try{
   const ids=tokenizer.idsFromGlyphs($('#glyph-text').value);
   if(!ids.length){$('#decode-status').textContent='Paste a glyph transmission to recover its text.';return;}
+  // Reject oversized pastes instead of silently decoding a truncated prefix.
+  if(ids.length>maxGlyphs)throw Error(`Transmission has ${ids.length.toLocaleString('en-US')} glyphs; the decoder accepts up to ${maxGlyphs.toLocaleString('en-US')}.`);
   decodedText=tokenizer.decode(ids);$('#decoded-text').value=decodedText;
   $('#decode-stats').textContent=`${ids.length} tokens`;
   $('#decode-status').textContent='✓ Decoded UTF-8 text.';
@@ -36,7 +38,7 @@ function decodeTransmission(){
  }catch(error){$('#decode-status').textContent=error.message;$('#decode-status').classList.add('error');}
 }
 $('#glyph-text').addEventListener('input',decodeTransmission);
-$('#decode-current').addEventListener('click',()=>{$('#glyph-text').value=currentIds.map(char).join('');decodeTransmission();});
+$('#decode-current').addEventListener('click',()=>{clearTimeout(encode.timer);encode();$('#glyph-text').value=currentIds.map(char).join('');decodeTransmission();});
 $('#copy-decoded').addEventListener('click',()=>copy(decodedText,'Decoded text copied.','Clipboard unavailable. Select and copy the decoded text.'));
 $('#save-decoded').addEventListener('click',()=>download(decodedText,'accelerando-8192-decoded.txt','text/plain;charset=utf-8'));
 $('#source-text').addEventListener('input',()=>{clearTimeout(encode.timer);encode.timer=setTimeout(encode,100);});$('#sample').addEventListener('click',()=>{$('#source-text').value=samples[++sampleIndex%samples.length];encode();});$('#view-glyphs').addEventListener('click',()=>{tokenView=false;$('#view-glyphs').setAttribute('aria-pressed','true');$('#view-tokens').setAttribute('aria-pressed','false');renderEncoded();});$('#view-tokens').addEventListener('click',()=>{tokenView=true;$('#view-tokens').setAttribute('aria-pressed','true');$('#view-glyphs').setAttribute('aria-pressed','false');renderEncoded();});$('#copy-transmission').addEventListener('click',()=>copy(currentIds.map(char).join('')));$('#save-transmission').addEventListener('click',()=>{if(data)download(transmissionSvg(currentIds),'accelerando-8192-transmission.svg');});$('#search').addEventListener('input',()=>{if(data)search();});$('#filter').addEventListener('change',()=>{if(data)search();});$('#prev').addEventListener('click',()=>{page--;drawGrid();});$('#next').addEventListener('click',()=>{page++;drawGrid();});$('#random').addEventListener('click',()=>{if(data)openGlyph(Math.floor(Math.random()*8192));});$('#close-dialog').addEventListener('click',()=>$('#glyph-dialog').close());$('#glyph-dialog').addEventListener('click',e=>{if(e.target===$('#glyph-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});$('#copy-glyph').addEventListener('click',()=>copy(char(selected)));$('#save-glyph').addEventListener('click',()=>download(shapeSvg(selected),`glyph-${String(selected).padStart(4,'0')}.svg`));
